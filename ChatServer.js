@@ -25,7 +25,7 @@ wss.on("connection", (ws) => {
   const changeStream = User.watch();
   changeStream.on("change", () => {
     // Notify client when data changes
-    Post.find()
+    User.find()
       .then((posts) => {
         ws.send(JSON.stringify({ type: "UPDATE_DATA", data: posts }));
       })
