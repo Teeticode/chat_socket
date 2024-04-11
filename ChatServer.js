@@ -5,7 +5,7 @@ const mongoose = require("mongoose");
 const User = require("./models/User");
 const Conversation = require("./models/Conversation");
 const Chat = require("./models/Chat");
-
+const connectedClients = new Map();
 const appChat = express();
 const server = http.createServer(appChat); // Create HTTP server
 
@@ -14,6 +14,13 @@ const wss = new WebSocket.Server({ server }); // Create WebSocket server
 wss.on("connection", (ws) => {
   console.log("Client connected");
 
+  ws.on("message", (message) => {
+    const data = JSON.parse(message);
+    if (data.type === "SUBSCRIBE_CONVERSATION") {
+      const { conversationId } = data;
+      connectedClients.set(ws, conversationId); // Track the conversation ID the client is interested in
+    }
+  });
   // Send initial data to client when connected
   User.find()
     .then((users) => {
@@ -24,7 +31,8 @@ wss.on("connection", (ws) => {
     .catch((err) => {
       console.log(err);
     });
-  Chat.find()
+  Chat.find({})
+    .populate("sender")
     .then((chats) => {
       ws.send(
         JSON.stringify({ type: "INITIAL_DATA", dataType: "CHAT", data: chats })
@@ -121,7 +129,9 @@ appChat.get("/conversations", async (req, res) => {
 appChat.get("/chats/:id", async (req, res) => {
   try {
     const conversationId = req.params.id;
-    const chats = await Chat.find({ conversationId: conversationId });
+    const chats = await Chat.find({ conversationId: conversationId }).populate(
+      "sender"
+    );
     res.json(chats);
   } catch (error) {
     res.status(500).json({ message: error.message });
