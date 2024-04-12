@@ -22,6 +22,37 @@ wss.on("connection", (ws) => {
     if (data.type === "SUBSCRIBE_CONVERSATION") {
       const { conversationId } = data;
       connectedClients.set(ws, conversationId); // Track the conversation ID the client is interested in
+      Chat.find({ conversationId })
+        .then((chats) => {
+          ws.send(
+            JSON.stringify({
+              type: "INITIAL_DATA",
+              dataType: "CHAT",
+              data: chats,
+            })
+          );
+        })
+        .catch((err) => {
+          console.log(err);
+        });
+
+      const chatStream = Chat.watch();
+      chatStream.on("change", () => {
+        // Notify client when data changes
+        Chat.find({ conversationId })
+          .then((chats) => {
+            ws.send(
+              JSON.stringify({
+                type: "UPDATE_DATA",
+                dataType: "CHAT",
+                data: chats,
+              })
+            );
+          })
+          .catch((err) => {
+            console.log(err);
+          });
+      });
     }
   });
 
@@ -71,32 +102,41 @@ wss.on("connection", (ws) => {
   });
 
   // Modify chatStream to notify only about specific conversations
-  const chatStream = Chat.watch();
-  chatStream.on("change", async (change) => {
-    try {
-      // Get the conversation ID from the change document
-      const conversationId = change.documentKey._id;
-      console.log(conversationId);
-      // Notify clients only if they are interested in the specific conversation ID
-      for (const [client, clientConversationId] of connectedClients.entries()) {
-        if (clientConversationId === conversationId) {
-          // Find the chat messages related to the specific conversation ID
-          const chat = await Chat.findOne({ conversationId });
+  // Modify chatStream to notify only about specific conversations
 
-          // Send the chat data to the client
-          client.send(
-            JSON.stringify({
-              type: "UPDATE_DATA",
-              dataType: "CHAT",
-              data: chat,
-            })
-          );
-        }
-      }
-    } catch (err) {
-      console.log("Error in chatStream:", err);
-    }
-  });
+  // Set up change stream for Chat collection
+  // Set up change stream for Chat collection
+  // const chatStream = Chat.collection.watch();
+
+  // chatStream.on("change", async (change) => {
+  //   try {
+  //     const { operationType, fullDocument } = change;
+
+  //     if (operationType === "insert" || operationType === "update") {
+  //       const { conversationId } = fullDocument;
+
+  //       // Notify clients interested in the specific conversation ID
+  //       for (const [
+  //         client,
+  //         clientConversationId,
+  //       ] of connectedClients.entries()) {
+  //         if (clientConversationId === conversationId) {
+  //           // Send the updated chat data to the client
+
+  //           client.send(
+  //             JSON.stringify({
+  //               type: "UPDATE_DATA",
+  //               dataType: "CHAT",
+  //               data: fullDocument,
+  //             })
+  //           );
+  //         }
+  //       }
+  //     }
+  //   } catch (err) {
+  //     console.log("Error in chatStream:", err);
+  //   }
+  // });
 
   // Handle Conversation collection changes
   const conversationStream = Conversation.watch();
